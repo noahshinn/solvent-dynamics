@@ -23,7 +23,7 @@ def _verlet_coords(
         delta_t: float,
     ) -> torch.Tensor:
     """
-    Computes the next atomic coordinate positions using Vertlet Integration.
+    Computes the next atomic coordinate positions using Verlet Integration.
 
     Args:
         state (int): Electronic energy state of which this molecular system is
