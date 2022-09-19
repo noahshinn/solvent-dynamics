@@ -4,3 +4,7 @@ from ._verlet_velo import _verlet_velo as verlet_velo
 from ._ml_energies_forces import _ml_energies_forces as ml_energies_forces
 from ._kinetic_energy import _kinetic_energy as kinetic_energy
 from ._surface_hopping import _surface_hopping as surface_hopping
+from ._internal_conversion import _internal_conversion as internal_conversion
+from ._intersystem_crossing import _intersystem_crossing as intersystem_crossing
+from ._adjust_velo_after_hop import _adjust_velo_after_hop as adjust_velo_after_hop
+from ._is_valid_surface_hop import _is_valid_surface_hop as is_valid_surface_hop 

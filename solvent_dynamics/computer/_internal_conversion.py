@@ -35,8 +35,8 @@ class P_NACS(NamedTuple):
 
 
 def _internal_conversion(
-        state: int,
-        nstates: int,
+        cur_state: int,
+        other_state: int,
         mass: torch.Tensor,
         coord: torch.Tensor,
         coord_prev: torch.Tensor,
@@ -56,9 +56,10 @@ def _internal_conversion(
     the current electronic state and every other state.
 
     Args:
-        state (int): Electronic energy state of which this molecular system is
+        cur_state (int): Electronic energy state of which this molecular system is
             populating.
-        nstates (int): The number of electronic states.
+        other_state (int): Electronic energy state of the other electronic
+            state in question
         mass (torch.Tensor): Atomic mass tensor of size (N) where N is the
             number of atoms.
         coords (torch.Tensor): Coordinate positions of size (N, 3) where N is
@@ -103,45 +104,42 @@ def _internal_conversion(
             Nakamura surface hopping between the same spin states
          
     Returns:
-        ic (torch.Tensor): A tensor of probabilities of size (K - 1) where K
-            is the number of electronic states.
+        p, nacs (torch.Tensor, torch.Tensor): The hopping probability between
+            the two given electronic states and the non-adiabatic matrix.
 
     """
 
-    e = energies_prev[state] + ke
+    e = energies_prev[cur_state] + ke
 
-    ic_c = []
-    for i in range(nstates):
-        low_state = min(i, state)
-        high_state = max(i, state)
-        delta_e = _delta_e(energies, energies_prev, energies_prev_prev, state, i)
-        #
+    low_state = min(other_state, cur_state)
+    high_state = max(other_state, cur_state)
+    delta_e = _delta_e(energies, energies_prev, energies_prev_prev, cur_state, other_state)
+    #
 
-        bt = -1 / (coord - coord_prev_prev)
-        tf1_1 = forces[low_state] * (coord_prev - coord_prev_prev)
-        tf2_1 = forces_prev_prev[high_state] * (coord_prev - coord)
-        f_ia_1 = bt * (tf1_1 - tf2_1)
+    bt = -1 / (coord - coord_prev_prev)
+    tf1_1 = forces[low_state] * (coord_prev - coord_prev_prev)
+    tf2_1 = forces_prev_prev[high_state] * (coord_prev - coord)
+    f_ia_1 = bt * (tf1_1 - tf2_1)
 
-        tf1_2 = forces[high_state] * (coord_prev - coord_prev_prev)
-        tf2_2 = forces_prev_prev[low_state] * coord_prev - coord
-        f_ia_2 = bt * (tf1_2 - tf2_2)
+    tf1_2 = forces[high_state] * (coord_prev - coord_prev_prev)
+    tf2_2 = forces_prev_prev[low_state] * coord_prev - coord
+    f_ia_2 = bt * (tf1_2 - tf2_2)
 
-        f_a = torch.sum((f_ia_2 - f_ia_1) ** 2 / mass) ** 0.5 # type: ignore
-        f_b = torch.sum(f_ia_1 * f_ia_2 / mass).abs() ** 0.5 # type: ignore
-        d_e = ...
-        a_2 = (f_a * f_b) / (2 * d_e ** 3) # type: ignore
-        n = math.pi / (4 * a_2 ** 0.5)
+    f_a = torch.sum((f_ia_2 - f_ia_1) ** 2 / mass) ** 0.5 # type: ignore
+    f_b = torch.sum(f_ia_1 * f_ia_2 / mass).abs() ** 0.5 # type: ignore
+    d_e = ...
+    a_2 = (f_a * f_b) / (2 * d_e ** 3) # type: ignore
+    n = math.pi / (4 * a_2 ** 0.5)
 
-        b_2 = ...
-        s = ...
-        m = (2 / (b_2 + torch.abs(b_2 ** 2 + s)) ** 0.5 # type: ignore
+    b_2 = ...
+    s = ...
+    m = (2 / (b_2 + torch.abs(b_2 ** 2 + s)) ** 0.5 # type: ignore
 
-        p = torch.exp(-n * m)
-        ic_c.append(p)
+    p = torch.exp(-n * m)
     
-    ic = torch.cat(ic_c, dim=0)
+    nacs = ...
 
-    return ic
+    return P_NACS(p, nacs)
 
 
 
