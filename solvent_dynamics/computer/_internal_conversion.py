@@ -26,12 +26,12 @@ def _delta_e(
         energies_prev[state_other] - energies_prev[state_cur],
         energies_prev_prev[state_other] - energies_prev_prev[state_cur]
     ]
-    return torch.cat(d_E, dim=0).abs()
+    return torch.stack(d_E, dim=0).abs()
 
 
 class P_NACS(NamedTuple):
     p: torch.Tensor
-    nacs = torch.Tensor
+    nacs: torch.Tensor
 
 
 def _internal_conversion(
@@ -109,12 +109,14 @@ def _internal_conversion(
 
     """
 
+    delta_e = _delta_e(energies, energies_prev, energies_prev_prev, cur_state, other_state)
     e = energies_prev[cur_state] + ke
+    avg_e = (energies_prev[other_state] + energies_prev[cur_state]) / 2
+
+    # check hop condition
 
     low_state = min(other_state, cur_state)
     high_state = max(other_state, cur_state)
-    delta_e = _delta_e(energies, energies_prev, energies_prev_prev, cur_state, other_state)
-    #
 
     bt = -1 / (coord - coord_prev_prev)
     tf1_1 = forces[low_state] * (coord_prev - coord_prev_prev)
@@ -125,24 +127,41 @@ def _internal_conversion(
     tf2_2 = forces_prev_prev[low_state] * coord_prev - coord
     f_ia_2 = bt * (tf1_2 - tf2_2)
 
-    f_a = torch.sum((f_ia_2 - f_ia_1) ** 2 / mass) ** 0.5 # type: ignore
-    f_b = torch.sum(f_ia_1 * f_ia_2 / mass).abs() ** 0.5 # type: ignore
-    d_e = ...
-    a_2 = (f_a * f_b) / (2 * d_e ** 3) # type: ignore
+    f_a = torch.sum((f_ia_2 - f_ia_1) ** 2 / mass) ** 0.5
+    f_b = torch.sum(f_ia_1 * f_ia_2 / mass).abs() ** 0.5
+    a_2 = (f_a * f_b) / (2 * delta_e ** 3)
     n = math.pi / (4 * a_2 ** 0.5)
 
-    b_2 = ...
-    s = ...
-    m = (2 / (b_2 + torch.abs(b_2 ** 2 + s)) ** 0.5 # type: ignore
+    b_2 = (e - avg_e) * f_a / (f_b * delta_e)
+    s = torch.sum(f_ia_1 * f_ia_2).sign()
+    m = 2 / ((b_2 + torch.abs(b_2 ** 2 + s)) ** 0.5)
 
     p = torch.exp(-n * m)
-    
-    nacs = ...
 
+    pnacs = (f_ia_2 - f_ia_1) / mass.pow(2)
+    nacs = pnacs / torch.sum(pnacs ** 2).pow(0.5)
+    
     return P_NACS(p, nacs)
 
 
-
+if __name__ == '__main__':
+    p, nacs = _internal_conversion(
+        cur_state=0,
+        other_state=1,
+        mass=torch.rand(51),
+        coord=torch.rand(51, 3),
+        coord_prev=torch.rand(51, 3),
+        coord_prev_prev=torch.rand(51, 3),
+        velo=torch.rand(51, 3),
+        energies=torch.rand(3),
+        energies_prev=torch.rand(3),
+        energies_prev_prev=torch.rand(3),
+        forces=torch.rand(3, 51, 3),
+        forces_prev=torch.rand(3, 51, 3),
+        forces_prev_prev=torch.rand(3, 51, 3),
+        ke=torch.rand(1),
+        ic_e_thresh=0.3 
+    ) 
 
 
 

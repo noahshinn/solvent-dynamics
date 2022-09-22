@@ -1,10 +1,10 @@
 """
-STATUS: NOT TESTED
+STATUS: SYNTAX PASS
 
 Next velocity propagation
 https://en.wikipedia.org/wiki/Verlet_integration
 
-# HERE:
+# optimizations:
     - replace loop with vmap
 
 """
@@ -54,8 +54,36 @@ def _verlet_velo(
     next_velo = []
     for i in range(natoms):
         delta_velo = 0.5 * (forces_prev[state][i] + forces[state][i]) / mass[i] * delta_t
-        next_velo.extend([velo - delta_velo])
+        next_velo.extend([velo[i] - delta_velo])
 
     next_velo = torch.stack(next_velo, dim=0)
 
     return next_velo
+
+
+if __name__ == '__main__':
+    ntests = 1
+    ntests_passed = 0
+
+    state = 2
+    coords = torch.rand(51, 3)
+    mass = torch.rand(51)
+    velo = torch.rand(51, 3)
+    forces = torch.rand(3, 51, 3)
+    forces_prev = torch.rand(3, 51, 3)
+    delta_t = 0.05
+
+    next_velo = _verlet_velo(
+        state=state,
+        coords=coords,
+        mass=mass,
+        velo=velo,
+        forces=forces,
+        forces_prev=forces_prev,
+        delta_t=delta_t
+    )
+
+    assert next_velo.size() == torch.Size([51, 3])
+    ntests_passed += 1
+
+    print(f'Passes {ntests_passed}/{ntests} tests!')

@@ -1,17 +1,15 @@
 """
-STATUS: NOT TESTED
+STATUS: SYNTAX PASS
 
 Next coordinate propagation
 https://en.wikipedia.org/wiki/Verlet_integration
 
-# HERE:
+# optimizations:
     - replace loop with vmap
 
 """
 
 import torch
-
-from typing import List
 
 
 def _verlet_coords(
@@ -57,3 +55,29 @@ def _verlet_coords(
     next_coords = torch.stack(next_coords, dim=0)
 
     return next_coords
+
+
+if __name__ == '__main__':
+    ntests = 1
+    ntests_passed = 0
+
+    state = 2
+    coords = torch.rand(51, 3)
+    mass = torch.rand(51)
+    velo = torch.rand(51, 3)
+    forces = torch.rand(3, 51, 3)
+    delta_t = 0.05
+
+    next_coords = _verlet_coords(
+        state=state,
+        coords=coords,
+        mass=mass,
+        velo=velo,
+        forces=forces,
+        delta_t=delta_t
+    )
+
+    assert next_coords.size() == torch.Size([51, 3])
+    ntests_passed += 1
+
+    print(f'Passes {ntests_passed}/{ntests} tests!')
