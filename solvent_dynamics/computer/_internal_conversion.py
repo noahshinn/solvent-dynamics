@@ -15,16 +15,24 @@ from typing import NamedTuple
 
 
 def _delta_e(
+        cur_state: int,
+        other_state: int,
         energies: torch.Tensor,
         energies_prev: torch.Tensor,
-        energies_prev_prev: torch.Tensor,
-        state_cur: int,
-        state_other: int
+        energies_prev_prev: torch.Tensor
     ) -> torch.Tensor:
+    """
+    Computes an energy gap tensor of size (3) between the current
+    state and the state in question.
+        - [0] current energy gap
+        - [1] prev energy gap
+        - [2] prev prev energy gap
+
+    """
     d_E = [
-        energies[state_other] - energies[state_cur],
-        energies_prev[state_other] - energies_prev[state_cur],
-        energies_prev_prev[state_other] - energies_prev_prev[state_cur]
+        energies[other_state] - energies[cur_state],
+        energies_prev[other_state] - energies_prev[cur_state],
+        energies_prev_prev[other_state] - energies_prev_prev[cur_state]
     ]
     return torch.stack(d_E, dim=0).abs()
 
@@ -109,7 +117,7 @@ def _internal_conversion(
 
     """
 
-    delta_e = _delta_e(energies, energies_prev, energies_prev_prev, cur_state, other_state)
+    delta_e = _delta_e(cur_state, other_state, energies, energies_prev, energies_prev_prev)
     e = energies_prev[cur_state] + ke
     avg_e = (energies_prev[other_state] + energies_prev[cur_state]) / 2
 
@@ -118,14 +126,14 @@ def _internal_conversion(
     low_state = min(other_state, cur_state)
     high_state = max(other_state, cur_state)
 
-    bt = -1 / (coord - coord_prev_prev)
-    tf1_1 = forces[low_state] * (coord_prev - coord_prev_prev)
-    tf2_1 = forces_prev_prev[high_state] * (coord_prev - coord)
-    f_ia_1 = bt * (tf1_1 - tf2_1)
+    bt = -1 / (coord - coord_prev_prev) # (51, 3)
+    tf1_1 = forces[low_state] * (coord_prev - coord_prev_prev) # (51, 3)
+    tf2_1 = forces_prev_prev[high_state] * (coord_prev - coord) # (51, 3)
+    f_ia_1 = bt * (tf1_1 - tf2_1) # (51, 3)
 
-    tf1_2 = forces[high_state] * (coord_prev - coord_prev_prev)
-    tf2_2 = forces_prev_prev[low_state] * coord_prev - coord
-    f_ia_2 = bt * (tf1_2 - tf2_2)
+    tf1_2 = forces[high_state] * (coord_prev - coord_prev_prev) # (51, 3)
+    tf2_2 = forces_prev_prev[low_state] * (coord_prev - coord) # (51, 3)
+    f_ia_2 = bt * (tf1_2 - tf2_2) # (51, 3)
 
     f_a = torch.sum((f_ia_2 - f_ia_1) ** 2 / mass) ** 0.5
     f_b = torch.sum(f_ia_1 * f_ia_2 / mass).abs() ** 0.5
@@ -145,24 +153,63 @@ def _internal_conversion(
 
 
 if __name__ == '__main__':
+    ntests = 1
+    ntests_passed = 0
+
+    _NATOMS = 51
+    _NSTATES = 3
+
+    cur_state = 0
+    other_state = 1
+    mass = torch.rand(_NATOMS)
+    coord = torch.rand(_NATOMS, 3)
+    coord_prev = torch.rand(_NATOMS, 3)
+    coord_prev_prev = torch.rand(_NATOMS, 3)
+    velo = torch.rand(_NATOMS, 3)
+    energies = torch.rand(_NSTATES)
+    energies_prev = torch.rand(_NSTATES)
+    energies_prev_prev = torch.rand(_NSTATES)
+    forces = torch.rand(_NSTATES, _NATOMS, 3)
+    forces_prev = torch.rand(_NSTATES, _NATOMS, 3)
+    forces_prev_prev = torch.rand(_NSTATES, _NATOMS, 3)
+    ke = torch.rand(1)
+    ic_e_thresh = 0.3 
+
+    d_e = _delta_e(
+        cur_state=cur_state,
+        other_state=other_state,
+        energies=energies,
+        energies_prev=energies_prev,
+        energies_prev_prev=energies_prev_prev
+    )
+
+    assert d_e.size() == torch.Size([3])
+    ntests_passed += 1
+
     p, nacs = _internal_conversion(
-        cur_state=0,
-        other_state=1,
-        mass=torch.rand(51),
-        coord=torch.rand(51, 3),
-        coord_prev=torch.rand(51, 3),
-        coord_prev_prev=torch.rand(51, 3),
-        velo=torch.rand(51, 3),
-        energies=torch.rand(3),
-        energies_prev=torch.rand(3),
-        energies_prev_prev=torch.rand(3),
-        forces=torch.rand(3, 51, 3),
-        forces_prev=torch.rand(3, 51, 3),
-        forces_prev_prev=torch.rand(3, 51, 3),
-        ke=torch.rand(1),
-        ic_e_thresh=0.3 
+        cur_state=cur_state,
+        other_state=other_state,
+        mass=mass,
+        coord=coord,
+        coord_prev=coord_prev,
+        coord_prev_prev=coord_prev_prev,
+        velo=velo,
+        energies=energies,
+        energies_prev=energies_prev,
+        energies_prev_prev=energies_prev_prev,
+        forces=forces,
+        forces_prev=forces_prev,
+        forces_prev_prev=forces_prev_prev,
+        ke=ke,
+        ic_e_thresh=ic_e_thresh
     ) 
 
+    print('p:', p)
+    print('nacs:', nacs)
+    # assert p.size == torch.Size([]) and nacs.size() == torch.Size([])
+    ntests_passed += 1
+
+    print(f'Passes {ntests_passed}/{ntests} tests!')
 
 
 
